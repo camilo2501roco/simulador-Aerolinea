@@ -1,257 +1,152 @@
 export class CallSimulator {
   constructor() {
-    this.audioContext = null;
-    this.isActive = false;
-    this.voices = [];
-    this.intervals = [];
-    this.currentAudio = null;
+    this.contextoAudio = null;
+    this.activo = false;
+    this.audioActual = null;
+    this.intervalos = [];
     
-    // Archivos de audio
-    this.audioFiles = {
-      holdMusic: [
+    this.archivosAudio = {
+      musicaEspera: [
         '/audio/hold-music-1.mp3',
         '/audio/hold-music-2.mp3', 
         '/audio/hold-music-3.mp3'
-      ],
-      transferSound: '/audio/transfer.mp3',
-      beep: '/audio/beep.mp3'
-    };
-    
-    this.audioBuffers = new Map();
-    
-    // Mensajes
-    this.messagePools = {
-      initial: [
-        "Bienvenido a AeroSim Airlines. Su llamada es muy importante para nosotros.",
-        "Gracias por llamar a AeroSim Airlines. Todos nuestros agentes están ocupados.",
-      ],
-      waiting: [
-        "Su llamada será atendida por el próximo agente disponible.",
-        "Su llamada es muy importante para nosotros.", 
-        "Su llamada es muy importante para nosotros.",
-      ],
-      transferring: [
-        "Su llamada es muy importante para nosotros",
-        "Su llamada es muy importante para nosotros", 
       ]
     };
     
-    this.init();
+    this.mensajes = {
+      inicial: [
+        "Bienvenido a Aero Gil. Su llamada es muy importante para nosotros.",
+        "Gracias por llamar a Aero Gil. Todos nuestros agentes están ocupados.",
+      ],
+      espera: [
+        "Su llamada será atendida por el próximo agente disponible.",
+        "Su llamada es muy importante para nosotros.", 
+      ]
+    };
+    
+    this.inicializar();
   }
 
-  async init() {
+  async inicializar() {
     try {
-      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      this.loadVoices();
-      console.log('✅ Audio listo');
+      this.contextoAudio = new (window.AudioContext || window.webkitAudioContext)();
     } catch (error) {
-      console.error('❌ Error audio:', error);
+      console.error('Error audio:', error);
     }
   }
 
-  async playHoldMusic() {
-    if (!this.isActive) return;
+  async reproducirMusicaEspera() {
+    if (!this.activo) return;
     
     try {
-      const availableMusic = this.audioFiles.holdMusic.filter(url => url);
+      const musicaAleatoria = this.archivosAudio.musicaEspera[
+        Math.floor(Math.random() * this.archivosAudio.musicaEspera.length)
+      ];
       
-      if (availableMusic.length === 0) {
-        this.playFallbackMusic();
-        return;
-      }
+      const respuesta = await fetch(musicaAleatoria);
+      const bufferAudio = await this.contextoAudio.decodeAudioData(await respuesta.arrayBuffer());
       
-      const randomMusic = availableMusic[Math.floor(Math.random() * availableMusic.length)];
+      const fuente = this.contextoAudio.createBufferSource();
+      const ganancia = this.contextoAudio.createGain();
       
-      const response = await fetch(randomMusic);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      fuente.buffer = bufferAudio;
+      fuente.loop = true;
+      ganancia.gain.value = 0.12;
       
-      const source = this.audioContext.createBufferSource();
-      const gainNode = this.audioContext.createGain();
+      fuente.connect(ganancia).connect(this.contextoAudio.destination);
+      fuente.start();
       
-      source.buffer = audioBuffer;
-      source.loop = true;
+      this.audioActual = { fuente, ganancia };
       
-      gainNode.gain.value = 0.12;
-      
-      source.connect(gainNode);
-      gainNode.connect(this.audioContext.destination);
-      
-      source.start();
-      
-      this.currentAudio = { source, gainNode };
-      
-      // Cambiar música cada 60-90 segundos
-      setTimeout(() => {
-        if (this.isActive) {
-          this.stopCurrentAudio();
-          this.playHoldMusic();
-        }
-      }, 60000 + Math.random() * 30000);
+      setTimeout(() => this.activo && this.reproducirMusicaEspera(), 60000 + Math.random() * 30000);
       
     } catch (error) {
-      this.playFallbackMusic();
+      this.reproducirMusicaRespaldo();
     }
   }
 
-  playFallbackMusic() {
-    const oscillator = this.audioContext.createOscillator();
-    const gainNode = this.audioContext.createGain();
+  reproducirMusicaRespaldo() {
+    const oscilador = this.contextoAudio.createOscillator();
+    const ganancia = this.contextoAudio.createGain();
     
-    oscillator.type = 'sine';
-    oscillator.frequency.value = 440;
-    gainNode.gain.value = 0.06;
+    oscilador.type = 'sine';
+    oscilador.frequency.value = 440;
+    ganancia.gain.value = 0.06;
     
-    oscillator.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
-    oscillator.start();
+    oscilador.connect(ganancia).connect(this.contextoAudio.destination);
+    oscilador.start();
     
-    this.currentAudio = { source: oscillator, gainNode };
+    this.audioActual = { fuente: oscilador, ganancia };
   }
 
-  async playSoundEffect(soundUrl) {
-    if (!this.isActive) return;
+  async hablarMensaje(texto) {
+    if (!this.activo || !('speechSynthesis' in window)) return;
     
-    try {
-      const response = await fetch(soundUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-      
-      const source = this.audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(this.audioContext.destination);
-      source.start();
-      
-    } catch (error) {
-      console.warn('No efecto:', soundUrl);
-    }
-  }
-
-  async speakMessage(text) {
-    if (!this.isActive || !('speechSynthesis' in window)) return;
-    
-    this.pauseHoldMusic();
+    this.pausarMusica();
     
     return new Promise((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.75;
-      utterance.pitch = 0.4;
-      utterance.volume = 0.9;
+      const enunciado = new SpeechSynthesisUtterance(texto);
+      enunciado.rate = 0.70;
+      enunciado.pitch = 0.8;
+      enunciado.volume = 0.9;
       
-      const spanishVoice = this.voices.find(voice => voice.lang.includes('es'));
-      if (spanishVoice) utterance.voice = spanishVoice;
+      const vozEspanol = speechSynthesis.getVoices().find(voz => voz.lang.includes('es'));
+      if (vozEspanol) enunciado.voice = vozEspanol;
       
-      utterance.onend = () => {
+      enunciado.onend = enunciado.onerror = () => {
         setTimeout(() => {
-          this.resumeHoldMusic();
+          this.reanudarMusica();
           resolve();
         }, 500);
       };
       
-      utterance.onerror = () => {
-        this.resumeHoldMusic();
-        resolve();
-      };
-      
-      speechSynthesis.speak(utterance);
+      speechSynthesis.speak(enunciado);
     });
   }
 
-  pauseHoldMusic() {
-    if (this.currentAudio && this.currentAudio.gainNode) {
-      this.currentAudio.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-    }
+  pausarMusica() {
+    this.audioActual?.ganancia.gain.setValueAtTime(0, this.contextoAudio.currentTime);
   }
 
-  resumeHoldMusic() {
-    if (this.currentAudio && this.currentAudio.gainNode) {
-      this.currentAudio.gainNode.gain.setValueAtTime(0.12, this.audioContext.currentTime);
-    }
-  }
-
-  stopCurrentAudio() {
-    if (this.currentAudio) {
-      try {
-        this.currentAudio.source.stop();
-      } catch (e) {}
-      this.currentAudio = null;
-    }
+  reanudarMusica() {
+    this.audioActual?.ganancia.gain.setValueAtTime(0.12, this.contextoAudio.currentTime);
   }
 
   startCallSimulation() {
-    if (this.isActive) return;
+    if (this.activo) return;
     
-    this.isActive = true;
-    console.log('📞 Iniciando audio...');
-    
-    this.playHoldMusic();
+    this.activo = true;
+    this.reproducirMusicaEspera();
     
     setTimeout(async () => {
-      if (!this.isActive) return;
-      
-      await this.speakMessage(this.getRandomMessage('initial'));
-      this.startMessageCycle();
-      this.startTransferCycle();
-      
+      if (!this.activo) return;
+      await this.hablarMensaje(this.obtenerMensajeAleatorio('inicial'));
+      this.iniciarCicloMensajes();
     }, 3000);
   }
 
-  startMessageCycle() {
-    const messageInterval = setInterval(async () => {
-      if (!this.isActive) {
-        clearInterval(messageInterval);
-        return;
-      }
-      
+  iniciarCicloMensajes() {
+    const intervalo = setInterval(async () => {
+      if (!this.activo) return clearInterval(intervalo);
       if (Math.random() > 0.3) {
-        await this.speakMessage(this.getRandomMessage('waiting'));
+        await this.hablarMensaje(this.obtenerMensajeAleatorio('espera'));
       }
-      
     }, 15000);
     
-    this.intervals.push(messageInterval);
+    this.intervalos.push(intervalo);
   }
 
-  startTransferCycle() {
-    const transferInterval = setInterval(async () => {
-      if (!this.isActive) {
-        clearInterval(transferInterval);
-        return;
-      }
-      
-      if (Math.random() > 0.6) {
-        await this.playSoundEffect(this.audioFiles.transferSound);
-        await this.speakMessage(this.getRandomMessage('transferring'));
-      }
-      
-    }, 25000);
-    
-    this.intervals.push(transferInterval);
-  }
-
-  getRandomMessage(category) {
-    const messages = this.messagePools[category];
-    return messages[Math.floor(Math.random() * messages.length)];
-  }
-
-  loadVoices() {
-    this.voices = speechSynthesis.getVoices();
-    if (this.voices.length === 0) {
-      speechSynthesis.addEventListener('voiceschanged', () => {
-        this.voices = speechSynthesis.getVoices();
-      });
-    }
+  obtenerMensajeAleatorio(categoria) {
+    const mensajes = this.mensajes[categoria];
+    return mensajes[Math.floor(Math.random() * mensajes.length)];
   }
 
   stopAll() {
-    this.isActive = false;
-    this.stopCurrentAudio();
-    
-    this.intervals.forEach(interval => clearInterval(interval));
-    this.intervals = [];
-    
+    this.activo = false;
+    this.audioActual?.fuente.stop();
+    this.audioActual = null;
+    this.intervalos.forEach(clearInterval);
+    this.intervalos = [];
     speechSynthesis.cancel();
-    
-    console.log('🔇 Audio detenido');
   }
 }

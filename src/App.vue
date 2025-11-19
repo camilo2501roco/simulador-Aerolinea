@@ -6,46 +6,19 @@
 
         <q-page-container>
           <q-page class="phone-page bg-light">
-            <!-- Indicador de audio -->
-            <div v-if="isCalling" class="audio-indicator">
-              <div class="pulse-dots">
-                <span class="dot"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
-              </div>
-              <span class="audio-text">Audio activo</span>
-            </div>
+            <AudioIndicator v-if="llamadaActiva" />
 
-            <transition
-              appear
-              enter-active-class="animated fadeIn"
-              leave-active-class="animated fadeOut"
-              duration="300"
-            >
-              <div v-if="!isCalling" key="dial" class="screen-container">
-                <DialPad 
-                  :phone-number="phoneNumber"
-                  @digit-pressed="addDigit"
-                  @backspace="removeDigit"
-                  @start-call="handleStartCall"
-                  @clear="clearPhoneNumber"
-                />
-              </div>
-
-              <!-- Pantalla de llamada activa -->
-              <div v-else key="active-call" class="screen-container fullscreen-call">
-                <ActiveCallScreen 
-                  :phone-number="phoneNumber"
-                  :is-muted="isMuted"
-                  :call-duration="callDuration"
-                  @mute-toggle="toggleMute"
-                  @audio-toggle="toggleAudio"
-                  @add-call="addCall"
-                  @facetime="startFaceTime"
-                  @contacts="showContacts"
-                  @end-call="handleEndCall"
-                />
-              </div>
+            <transition appear enter-active-class="animated fadeIn" leave-active-class="animated fadeOut">
+              <component 
+                :is="currentScreen" 
+                v-bind="screenProps"
+                @toggle-mute="alternarSilenciado"
+                @end-call="manejarLlamada"
+                @start-call="manejarLlamada"
+                @digit-pressed="agregarDigito"
+                @backspace="eliminarDigito"
+                @clear="limpiarNumero"
+              />
             </transition>
           </q-page>
         </q-page-container>
@@ -57,157 +30,80 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useQuasar } from 'quasar'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import DialPad from './components/DialPad.vue'
 import ActiveCallScreen from './components/ActiveCallScreen.vue'
+import AudioIndicator from './components/AudioIndicator.vue'
 import { CallSimulator } from './utils/callSimulator.js'
 
-const $q = useQuasar()
+// Estados
+const llamadaActiva = ref(false)
+const numeroTelefono = ref('8001234567')
+const microfonoSilenciado = ref(false)
+const duracionLlamada = ref(0)
 
-// Estados reactivos
-const isCalling = ref(false)
-const phoneNumber = ref('8001234567')
-const isMuted = ref(false)
-const callDuration = ref(0)
+// Computados
+const currentScreen = computed(() => llamadaActiva.value ? ActiveCallScreen : DialPad)
+const screenProps = computed(() => llamadaActiva.value ? {
+  phoneNumber: numeroTelefono.value,
+  isMuted: microfonoSilenciado.value,
+  callDuration: duracionLlamada.value
+} : { phoneNumber: numeroTelefono.value })
 
-// Simulador y timer
-const callSimulator = ref(null)
-let durationTimer = null
+// Simulador
+const simuladorLlamada = ref(null)
+let temporizadorDuracion = null
 
 // Métodos
-const addDigit = (digit) => {
-  if (phoneNumber.value.length < 20) {
-    phoneNumber.value += digit
-  }
+const agregarDigito = (digito) => {
+  if (numeroTelefono.value.length < 20) numeroTelefono.value += digito
 }
 
-const removeDigit = () => {
-  phoneNumber.value = phoneNumber.value.slice(0, -1)
+const eliminarDigito = () => {
+  numeroTelefono.value = numeroTelefono.value.slice(0, -1)
 }
 
-const clearPhoneNumber = () => {
-  phoneNumber.value = ''
+const limpiarNumero = () => {
+  numeroTelefono.value = ''
 }
 
-const handleStartCall = () => {
-  if (!phoneNumber.value) {
-    $q.notify({
-      type: 'warning',
-      message: 'Ingresa un número de teléfono',
-      position: 'top'
-    })
-    return
-  }
+const manejarLlamada = () => {
+  if (!llamadaActiva.value && !numeroTelefono.value) return
+  llamadaActiva.value ? finalizarLlamada() : iniciarLlamada()
+}
+
+const iniciarLlamada = () => {
+  llamadaActiva.value = true
+  microfonoSilenciado.value = false
+  duracionLlamada.value = 0
+
+  temporizadorDuracion = setInterval(() => duracionLlamada.value++, 1000)
+  simuladorLlamada.value?.startCallSimulation()
+}
+
+const finalizarLlamada = () => {
+  llamadaActiva.value = false
+  microfonoSilenciado.value = false
   
-  startCall()
-}
-
-const startCall = () => {
-  isCalling.value = true
-  isMuted.value = false
-  callDuration.value = 0
-
-  // Iniciar contador
-  startDurationTimer()
-
-  // Iniciar audio
-  if (callSimulator.value) {
-    callSimulator.value.startCallSimulation()
-  }
-}
-
-const startDurationTimer = () => {
-  // Limpiar timer anterior
-  if (durationTimer) {
-    clearInterval(durationTimer)
-  }
+  clearInterval(temporizadorDuracion)
+  temporizadorDuracion = null
+  simuladorLlamada.value?.stopAll()
   
-  // Nuevo timer que suma 1 cada segundo
-  durationTimer = setInterval(() => {
-    callDuration.value++
-  }, 1000)
+  numeroTelefono.value = '8001234567'
 }
 
-const handleEndCall = () => {
-  endCall()
-}
-
-const endCall = () => {
-  isCalling.value = false
-  isMuted.value = false
-  
-  // Detener contador
-  if (durationTimer) {
-    clearInterval(durationTimer)
-    durationTimer = null
-  }
-  
-  // Detener audio
-  if (callSimulator.value) {
-    callSimulator.value.stopAll()
-  }
-  
-  phoneNumber.value = '8001234567'
-  
-  $q.notify({
-    type: 'info',
-    message: 'Llamada finalizada',
-    position: 'top',
-    timeout: 1000
-  })
-}
-
-const toggleMute = () => {
-  isMuted.value = !isMuted.value
-}
-
-const toggleAudio = () => {
-  $q.notify({
-    type: 'info',
-    message: 'Cambiando dispositivo de audio...',
-    position: 'top',
-    timeout: 1000
-  })
-}
-
-const addCall = () => {
-  $q.notify({
-    type: 'info',
-    message: 'Agregar llamada no disponible',
-    position: 'top'
-  })
-}
-
-const startFaceTime = () => {
-  $q.notify({
-    type: 'warning',
-    message: 'FaceTime no disponible',
-    position: 'top'
-  })
-}
-
-const showContacts = () => {
-  $q.notify({
-    type: 'info',
-    message: 'Abriendo contactos...',
-    position: 'top',
-    timeout: 1000
-  })
+const alternarSilenciado = () => {
+  microfonoSilenciado.value = !microfonoSilenciado.value
 }
 
 // Lifecycle
 onMounted(() => {
-  callSimulator.value = new CallSimulator()
+  simuladorLlamada.value = new CallSimulator()
 })
 
 onUnmounted(() => {
-  if (durationTimer) {
-    clearInterval(durationTimer)
-  }
-  if (callSimulator.value) {
-    callSimulator.value.stopAll()
-  }
+  clearInterval(temporizadorDuracion)
+  simuladorLlamada.value?.stopAll()
 })
 </script>
 
@@ -269,14 +165,8 @@ onUnmounted(() => {
   z-index: 50;
 }
 
-.phone-layout {
-  width: 100%;
-  height: 100%;
+.phone-layout, .bg-light {
   background: #f5f5f7;
-}
-
-.bg-light {
-  background-color: #f5f5f7 !important;
 }
 
 .phone-page {
@@ -284,70 +174,5 @@ onUnmounted(() => {
   height: 100% !important;
   overflow: hidden;
   padding: 0 !important;
-}
-
-.screen-container {
-  width: 100%;
-  height: 100%;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-}
-
-.fullscreen-call {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1000;
-}
-
-.audio-indicator {
-  position: absolute;
-  top: 10px;
-  right: 15px;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 11px;
-  z-index: 1001;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  backdrop-filter: blur(10px);
-}
-
-.pulse-dots {
-  display: flex;
-  gap: 3px;
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  background: #4CAF50;
-  border-radius: 50%;
-  animation: pulse 1.4s ease-in-out infinite both;
-}
-
-.dot:nth-child(1) { animation-delay: -0.32s; }
-.dot:nth-child(2) { animation-delay: -0.16s; }
-.dot:nth-child(3) { animation-delay: 0s; }
-
-.audio-text {
-  font-weight: 500;
-}
-
-@keyframes pulse {
-  0%, 80%, 100% {
-    transform: scale(0.8);
-    opacity: 0.5;
-  }
-  40% {
-    transform: scale(1.2);
-    opacity: 1;
-  }
 }
 </style>

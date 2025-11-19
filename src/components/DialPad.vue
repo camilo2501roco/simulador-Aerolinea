@@ -1,23 +1,21 @@
 <template>
   <q-card class="dial-pad-card">
     <q-card-section>
-      <!-- Display del número -->
+      <!-- Display -->
       <div class="display-container q-mb-lg">
-        <div class="display-text">
-          {{ phoneNumber || 'Marcador' }}
-        </div>
+        <div class="display-text">{{ phoneNumber || 'Marcador' }}</div>
         <div class="text-caption text-grey q-mt-xs">
           {{ phoneNumber ? 'Número de aerolínea' : 'Agregar número' }}
         </div>
       </div>
 
-      <!-- Teclado numérico -->
+      <!-- Teclado -->
       <div class="keypad-grid q-mb-lg">
         <button 
           v-for="key in keys"
           :key="key.digit"
           class="key-button"
-          @click="() => $emit('digit-pressed', key.digit)"
+          @click="$emit('digit-pressed', key.digit)"
         >
           <div class="key-digit">{{ key.digit }}</div>
           <div class="key-letters">{{ key.letters }}</div>
@@ -26,19 +24,12 @@
 
       <!-- Botones de acción -->
       <div class="action-buttons q-mb-lg">
-        <q-btn
-          round
-          dense
-          color="negative"
-          icon="backspace"
-          @click="$emit('backspace')"
-          size="md"
-        />
+        <q-btn round dense color="negative" icon="backspace" @click="$emit('backspace')" />
         <q-space />
-       
+        <q-btn round dense color="primary" icon="clear" @click="$emit('clear')" />
       </div>
 
-      <!-- Botón de llamada VERDE -->
+      <!-- Llamada -->
       <q-btn
         unelevated
         color="positive"
@@ -46,7 +37,7 @@
         icon="call"
         size="lg"
         class="full-width call-button"
-        @click="handleCall"
+        @click="$emit('start-call')"
         :disable="!phoneNumber"
       />
     </q-card-section>
@@ -54,19 +45,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+defineProps(['phoneNumber'])
+defineEmits(['digit-pressed', 'backspace', 'clear', 'start-call'])
 
-// Definir props y emits
-const props = defineProps({
-  phoneNumber: {
-    type: String,
-    default: ''
-  }
-})
-
-const emit = defineEmits(['digit-pressed', 'backspace', 'clear', 'start-call'])
-
-const keys = ref([
+const keys = [
   { digit: '1', letters: '' },
   { digit: '2', letters: 'ABC' },
   { digit: '3', letters: 'DEF' },
@@ -79,20 +61,13 @@ const keys = ref([
   { digit: '*', letters: '' },
   { digit: '0', letters: '+' },
   { digit: '#', letters: '' }
-])
-
-const handleCall = () => {
-  console.log('Botón llamar clickeado, número:', props.phoneNumber)
-  emit('start-call')
-}
+]
 </script>
 
 <style lang="scss" scoped>
 .dial-pad-card {
   border-radius: 20px;
   background: white;
-  box-shadow: none;
-  border: none;
 }
 
 .display-container {
@@ -130,16 +105,6 @@ const handleCall = () => {
   justify-content: center;
   color: #000;
   transition: all 0.2s ease;
-  
-  &:hover {
-    background: #e5e5ea;
-    transform: scale(1.1);
-  }
-  
-  &:active {
-    background: #d5d5da;
-    transform: scale(0.95);
-  }
 }
 
 .key-digit {
@@ -156,7 +121,6 @@ const handleCall = () => {
 
 .action-buttons {
   display: flex;
-  gap: 12px;
   justify-content: space-between;
   align-items: flex-end;
   margin-bottom: 20px;
@@ -164,22 +128,10 @@ const handleCall = () => {
 
 .call-button {
   border-radius: 50px;
-  padding: 14px !important;
+  padding: 14px;
   font-weight: 600;
   font-size: 16px;
-  background: #34c759 !important;
+  background: #34c759;
   height: 56px;
-  
-  &:not(:disabled):hover {
-    background: #30b352 !important;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(52, 199, 89, 0.4);
-  }
-  
-  &:disabled {
-    background: #c8e6c9 !important;
-    color: #666;
-    cursor: not-allowed;
-  }
 }
 </style>
