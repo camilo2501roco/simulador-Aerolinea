@@ -14,7 +14,7 @@
         <div class="text-h3 text-weight-bold text-white q-mb-lg">{{ tiempoFormateado }}</div>
       </div>
 
-      <!-- Controles principales -->
+     
       <div class="controls-container">
         <div class="control-row">
           <ControlButton 
@@ -58,7 +58,7 @@
         </div>
       </div>
 
-      <!-- Botón finalizar -->
+
       <div class="end-call-section">
         <q-btn
           round

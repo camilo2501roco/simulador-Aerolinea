@@ -1,7 +1,7 @@
 <template>
   <q-card class="dial-pad-card">
     <q-card-section>
-      <!-- Display -->
+     
       <div class="display-container q-mb-lg">
         <div class="display-text">{{ phoneNumber || 'Marcador' }}</div>
         <div class="text-caption text-grey q-mt-xs">
@@ -9,7 +9,7 @@
         </div>
       </div>
 
-      <!-- Teclado -->
+    
       <div class="keypad-grid q-mb-lg">
         <button 
           v-for="key in keys"

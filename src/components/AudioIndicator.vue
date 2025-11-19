@@ -8,7 +8,7 @@
 </template>
 
 <script setup>
-// Componente para mostrar el indicador de audio activo
+
 </script>
 
 <style scoped>

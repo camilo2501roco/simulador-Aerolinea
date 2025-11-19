@@ -2,7 +2,7 @@ export class CallSimulator {
   constructor() {
     this.audios = {};
     this.timers = [];
-    this.activo = false; // ← FALTABA ESTE FLAG
+    this.activo = false; 
     this.cargarAudios();
   }
 
@@ -17,27 +17,27 @@ export class CallSimulator {
     
     this.audios.musica.loop = true;
     
-    // Configurar todos los mensajes para que reinicien al terminar
+  
     Object.values(this.audios).forEach(audio => {
       audio.addEventListener('ended', () => {
-        audio.currentTime = 0; // Reiniciar para próxima reproducción
+        audio.currentTime = 0; 
       });
     });
   }
 
   startCallSimulation() {
-    if (this.activo) return; // ← EVITAR MÚLTIPLES INICIOS
+    if (this.activo) return; 
     this.activo = true;
     
     console.log('🔊 Iniciando simulación...');
     this.audios.musica.play();
     
-    // Mensaje de bienvenida después de 3 segundos
+    
     setTimeout(() => {
       this.reproducirMensaje('bienvenida');
     }, 3000);
     
-    // Iniciar mensajes aleatorios después de 10 segundos (no inmediatamente)
+    
     setTimeout(() => {
       this.iniciarMensajesAleatorios();
     }, 10000);
@@ -48,12 +48,12 @@ export class CallSimulator {
     
     console.log('🎤 Reproduciendo:', tipoMensaje);
     
-    // Pausar música y reproducir mensaje
+
     this.audios.musica.pause();
-    this.audios[tipoMensaje].currentTime = 0; // ← REINICIAR AUDIO
+    this.audios[tipoMensaje].currentTime = 0; 
     this.audios[tipoMensaje].play();
     
-    // Configurar el evento onended CADA VEZ
+   
     this.audios[tipoMensaje].onended = () => {
       console.log('✅ Mensaje terminado, volviendo a música');
       if (this.activo) {
@@ -73,14 +73,14 @@ export class CallSimulator {
         return;
       }
       
-      // 70% probabilidad de mensaje cada 20 segundos
-      if (Math.random() > 0.3) { // ← CAMBIÉ A > 0.3 para más frecuencia
+    
+      if (Math.random() > 0.3) { 
         const mensajes = ['mensaje1', 'mensaje2', 'mensaje3'];
         const mensajeAleatorio = mensajes[Math.floor(Math.random() * mensajes.length)];
         console.log('🎲 Mensaje aleatorio seleccionado:', mensajeAleatorio);
         this.reproducirMensaje(mensajeAleatorio);
       }
-    }, 10000); // ← 20 segundos entre chequeos
+    }, 10000); 
     
     this.timers.push(timer);
   }
