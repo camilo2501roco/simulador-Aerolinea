@@ -2,7 +2,6 @@
   <div class="app-wrapper">
     <div class="phone-container">
       <q-layout view="hHh lpR fFf" class="phone-layout">
-        <!-- iPhone notch -->
         <div class="iphone-notch"></div>
 
         <q-page-container>
@@ -23,7 +22,6 @@
               leave-active-class="animated fadeOut"
               duration="300"
             >
-              <!-- Solo dos pantallas: Marcado y Llamada -->
               <div v-if="!isCalling" key="dial" class="screen-container">
                 <DialPad 
                   :phone-number="phoneNumber"
@@ -39,27 +37,19 @@
                 <ActiveCallScreen 
                   :phone-number="phoneNumber"
                   :is-muted="isMuted"
+                  :call-duration="callDuration"
                   @mute-toggle="toggleMute"
-                  @keypad-toggle="toggleKeypad"
                   @audio-toggle="toggleAudio"
                   @add-call="addCall"
                   @facetime="startFaceTime"
                   @contacts="showContacts"
                   @end-call="handleEndCall"
                 />
-
-                <!-- Keypad overlay -->
-                <DialPadOverlay 
-                  v-if="showKeypadOverlay"
-                  @digit-pressed="addDigitDuringCall"
-                  @close="showKeypadOverlay = false"
-                />
               </div>
             </transition>
           </q-page>
         </q-page-container>
 
-        <!-- iPhone home indicator -->
         <div class="iphone-home-indicator"></div>
       </q-layout>
     </div>
@@ -71,7 +61,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useQuasar } from 'quasar'
 import DialPad from './components/DialPad.vue'
 import ActiveCallScreen from './components/ActiveCallScreen.vue'
-import DialPadOverlay from './components/DialPadOverlay.vue'
 import { CallSimulator } from './utils/callSimulator.js'
 
 const $q = useQuasar()
@@ -80,10 +69,11 @@ const $q = useQuasar()
 const isCalling = ref(false)
 const phoneNumber = ref('8001234567')
 const isMuted = ref(false)
-const showKeypadOverlay = ref(false)
+const callDuration = ref(0)
 
-// Simulador de audio
+// Simulador y timer
 const callSimulator = ref(null)
+let durationTimer = null
 
 // Métodos
 const addDigit = (digit) => {
@@ -100,8 +90,7 @@ const clearPhoneNumber = () => {
   phoneNumber.value = ''
 }
 
-const handleStartCall = async () => {
-  console.log('🟢 Iniciando llamada a:', phoneNumber.value)
+const handleStartCall = () => {
   if (!phoneNumber.value) {
     $q.notify({
       type: 'warning',
@@ -111,29 +100,48 @@ const handleStartCall = async () => {
     return
   }
   
-  await startCall()
+  startCall()
 }
 
-const startCall = async () => {
-  console.log('🚀 Llamada iniciada')
+const startCall = () => {
   isCalling.value = true
   isMuted.value = false
-  showKeypadOverlay.value = false
+  callDuration.value = 0
 
-  // Iniciar simulación de audio
+  // Iniciar contador
+  startDurationTimer()
+
+  // Iniciar audio
   if (callSimulator.value) {
-    await callSimulator.value.startCallSimulation()
+    callSimulator.value.startCallSimulation()
   }
 }
 
+const startDurationTimer = () => {
+  // Limpiar timer anterior
+  if (durationTimer) {
+    clearInterval(durationTimer)
+  }
+  
+  // Nuevo timer que suma 1 cada segundo
+  durationTimer = setInterval(() => {
+    callDuration.value++
+  }, 1000)
+}
+
 const handleEndCall = () => {
-  console.log('📞 Llamada finalizada')
   endCall()
 }
 
 const endCall = () => {
   isCalling.value = false
   isMuted.value = false
+  
+  // Detener contador
+  if (durationTimer) {
+    clearInterval(durationTimer)
+    durationTimer = null
+  }
   
   // Detener audio
   if (callSimulator.value) {
@@ -152,11 +160,6 @@ const endCall = () => {
 
 const toggleMute = () => {
   isMuted.value = !isMuted.value
-  // Aquí podrías agregar lógica para mute real del audio
-}
-
-const toggleKeypad = () => {
-  showKeypadOverlay.value = !showKeypadOverlay.value
 }
 
 const toggleAudio = () => {
@@ -193,24 +196,15 @@ const showContacts = () => {
   })
 }
 
-const addDigitDuringCall = (digit) => {
-  console.log('DTMF:', digit)
-  // Aquí podrías agregar sonidos DTMF
-}
-
 // Lifecycle
 onMounted(() => {
-  // Inicializar simulador de audio
   callSimulator.value = new CallSimulator()
-  
-  // Esperar a que las voces estén cargadas
-  setTimeout(() => {
-    console.log('✅ Simulador de audio listo')
-  }, 1000)
 })
 
 onUnmounted(() => {
-  // Limpiar audio al desmontar
+  if (durationTimer) {
+    clearInterval(durationTimer)
+  }
   if (callSimulator.value) {
     callSimulator.value.stopAll()
   }
@@ -309,7 +303,6 @@ onUnmounted(() => {
   z-index: 1000;
 }
 
-/* Indicador de audio */
 .audio-indicator {
   position: absolute;
   top: 10px;

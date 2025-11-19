@@ -1,46 +1,38 @@
 export class CallSimulator {
   constructor() {
     this.audioContext = null;
-    this.holdMusic = null;
     this.isActive = false;
     this.voices = [];
     this.intervals = [];
-    this.messageQueue = [];
-    this.transferCount = 0;
+    this.currentAudio = null;
     
+    // Archivos de audio
+    this.audioFiles = {
+      holdMusic: [
+        '/audio/hold-music-1.mp3',
+        '/audio/hold-music-2.mp3', 
+        '/audio/hold-music-3.mp3'
+      ],
+      transferSound: '/audio/transfer.mp3',
+      beep: '/audio/beep.mp3'
+    };
+    
+    this.audioBuffers = new Map();
+    
+    // Mensajes
     this.messagePools = {
       initial: [
-        "Bienvenido a camilo Airlines. Su llamada es muy importante para nosotros.",
+        "Bienvenido a AeroSim Airlines. Su llamada es muy importante para nosotros.",
         "Gracias por llamar a AeroSim Airlines. Todos nuestros agentes están ocupados.",
-        "Bienvenido al centro de servicio de AeroSim. Por favor, espere en la línea."
       ],
       waiting: [
         "Su llamada será atendida por el próximo agente disponible.",
-        "Le agradecemos su paciencia. Un agente lo atenderá pronto.", 
-        "No cuelgue, por favor. Su llamada está en cola.",
-        "Todos nuestros representantes siguen ocupados. Permanezca en la línea.",
-        "Su tiempo de espera aproximado es de cuarenta y cinco minutos.",
-        "Estamos experimentando un volumen inusualmente alto de llamadas."
+        "Su llamada es muy importante para nosotros.", 
+        "Su llamada es muy importante para nosotros.",
       ],
       transferring: [
-        "Transferiendo su llamada al departamento correspondiente...",
-        "Conectándolo con un especialista...", 
-        "Por favor espere, lo estamos comunicando...",
-        "Transfiriendo su llamada al área de soporte...",
-        "Comunicando con el departamento de reservaciones...",
-        "Transferencia en proceso al servicio al cliente..."
-      ],
-      menu: [
-        "Para reservaciones, presione 1. Para cancelaciones, presione 2. Para reclamos, presione 3.",
-        "Si desea hacer una nueva reserva, marque 1. Para modificar una existente, marque 2.",
-        "Para hablar con un agente en español, permanezca en la línea. For English, press 9.",
-        "Si conoce la extensión de su agente, puede marcarla en cualquier momento."
-      ],
-      frustration: [
-        "Le reiteramos que su llamada es importante para nosotros...",
-        "Sabemos que su tiempo es valioso. Gracias por esperar.",
-        "Apreciamos su paciencia. Será atendido momentáneamente.",
-        "No cuelgue. Estamos procesando su llamada."
+        "Su llamada es muy importante para nosotros",
+        "Su llamada es muy importante para nosotros", 
       ]
     };
     
@@ -51,77 +43,103 @@ export class CallSimulator {
     try {
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
       this.loadVoices();
-      console.log('✅ Audio inicializado');
+      console.log('✅ Audio listo');
     } catch (error) {
-      console.error('❌ Error con audio:', error);
+      console.error('❌ Error audio:', error);
     }
   }
 
-  loadVoices() {
-    this.voices = speechSynthesis.getVoices();
-    if (this.voices.length === 0) {
-      speechSynthesis.addEventListener('voiceschanged', () => {
-        this.voices = speechSynthesis.getVoices();
-      });
-    }
-  }
-
-  // Música de espera horrible
-  playHorribleHoldMusic() {
-    if (!this.audioContext) return;
+  async playHoldMusic() {
+    if (!this.isActive) return;
     
     try {
-      const oscillator = this.audioContext.createOscillator();
+      const availableMusic = this.audioFiles.holdMusic.filter(url => url);
+      
+      if (availableMusic.length === 0) {
+        this.playFallbackMusic();
+        return;
+      }
+      
+      const randomMusic = availableMusic[Math.floor(Math.random() * availableMusic.length)];
+      
+      const response = await fetch(randomMusic);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      
+      const source = this.audioContext.createBufferSource();
       const gainNode = this.audioContext.createGain();
       
-      oscillator.type = 'sawtooth';
-      oscillator.frequency.setValueAtTime(350, this.audioContext.currentTime);
-      gainNode.gain.setValueAtTime(0.06, this.audioContext.currentTime);
+      source.buffer = audioBuffer;
+      source.loop = true;
       
-      oscillator.connect(gainNode);
+      gainNode.gain.value = 0.12;
+      
+      source.connect(gainNode);
       gainNode.connect(this.audioContext.destination);
-      oscillator.start();
       
-      // Cambios aleatorios para hacerlo más irritante
-      const changeInterval = setInterval(() => {
-        if (!this.isActive) {
-          clearInterval(changeInterval);
-          return;
-        }
-        const newFreq = 280 + Math.random() * 400;
-        oscillator.frequency.setValueAtTime(newFreq, this.audioContext.currentTime);
-        
-        if (Math.random() > 0.7) {
-          oscillator.type = Math.random() > 0.5 ? 'square' : 'sawtooth';
-        }
-      }, 1800);
+      source.start();
       
-      this.holdMusic = { oscillator, gainNode, changeInterval };
+      this.currentAudio = { source, gainNode };
+      
+      // Cambiar música cada 60-90 segundos
+      setTimeout(() => {
+        if (this.isActive) {
+          this.stopCurrentAudio();
+          this.playHoldMusic();
+        }
+      }, 60000 + Math.random() * 30000);
       
     } catch (error) {
-      console.error('Error con música:', error);
+      this.playFallbackMusic();
     }
   }
 
-  // Hablar mensajes
-  speakMessage(text) {
-    if (!this.isActive || !('speechSynthesis' in window)) return Promise.resolve();
+  playFallbackMusic() {
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.value = 440;
+    gainNode.gain.value = 0.06;
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    oscillator.start();
+    
+    this.currentAudio = { source: oscillator, gainNode };
+  }
+
+  async playSoundEffect(soundUrl) {
+    if (!this.isActive) return;
+    
+    try {
+      const response = await fetch(soundUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      
+      const source = this.audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.audioContext.destination);
+      source.start();
+      
+    } catch (error) {
+      console.warn('No efecto:', soundUrl);
+    }
+  }
+
+  async speakMessage(text) {
+    if (!this.isActive || !('speechSynthesis' in window)) return;
     
     this.pauseHoldMusic();
     
     return new Promise((resolve) => {
       const utterance = new SpeechSynthesisUtterance(text);
-      
       utterance.rate = 0.75;
       utterance.pitch = 0.4;
       utterance.volume = 0.9;
       
-      const spanishVoice = this.voices.find(voice => 
-        voice.lang.includes('es')
-      );
-      if (spanishVoice) {
-        utterance.voice = spanishVoice;
-      }
+      const spanishVoice = this.voices.find(voice => voice.lang.includes('es'));
+      if (spanishVoice) utterance.voice = spanishVoice;
       
       utterance.onend = () => {
         setTimeout(() => {
@@ -140,38 +158,40 @@ export class CallSimulator {
   }
 
   pauseHoldMusic() {
-    if (this.holdMusic && this.holdMusic.gainNode) {
-      this.holdMusic.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    if (this.currentAudio && this.currentAudio.gainNode) {
+      this.currentAudio.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
     }
   }
 
   resumeHoldMusic() {
-    if (this.holdMusic && this.holdMusic.gainNode) {
-      this.holdMusic.gainNode.gain.setValueAtTime(0.06, this.audioContext.currentTime);
+    if (this.currentAudio && this.currentAudio.gainNode) {
+      this.currentAudio.gainNode.gain.setValueAtTime(0.12, this.audioContext.currentTime);
     }
   }
 
-  // Iniciar simulación completa
-  async startCallSimulation() {
+  stopCurrentAudio() {
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.source.stop();
+      } catch (e) {}
+      this.currentAudio = null;
+    }
+  }
+
+  startCallSimulation() {
     if (this.isActive) return;
     
     this.isActive = true;
-    this.transferCount = 0;
+    console.log('📞 Iniciando audio...');
     
-    console.log('📞 Iniciando simulación de audio...');
-    this.playHorribleHoldMusic();
+    this.playHoldMusic();
     
-    // Esperar antes del primer mensaje
     setTimeout(async () => {
       if (!this.isActive) return;
       
-      // Mensaje inicial
       await this.speakMessage(this.getRandomMessage('initial'));
-      
-      // Iniciar ciclos
       this.startMessageCycle();
       this.startTransferCycle();
-      this.startMenuCycle();
       
     }, 3000);
   }
@@ -183,10 +203,11 @@ export class CallSimulator {
         return;
       }
       
-      const message = this.getRandomMessage('waiting');
-      await this.speakMessage(message);
+      if (Math.random() > 0.3) {
+        await this.speakMessage(this.getRandomMessage('waiting'));
+      }
       
-    }, 15000); // Cada 15 segundos
+    }, 15000);
     
     this.intervals.push(messageInterval);
   }
@@ -198,41 +219,14 @@ export class CallSimulator {
         return;
       }
       
-      if (Math.random() > 0.6) { // 40% probabilidad
-        this.transferCount++;
-        const transferMsg = this.getRandomMessage('transferring');
-        await this.speakMessage(transferMsg);
-        
-        // Ocasionalmente simular falla
-        if (this.transferCount > 2 && Math.random() > 0.5) {
-          setTimeout(async () => {
-            if (this.isActive) {
-              await this.speakMessage("Lo sentimos, esa extensión no está disponible. Transferiendo nuevamente...");
-            }
-          }, 2000);
-        }
+      if (Math.random() > 0.6) {
+        await this.playSoundEffect(this.audioFiles.transferSound);
+        await this.speakMessage(this.getRandomMessage('transferring'));
       }
       
-    }, 25000); // Cada 25 segundos
+    }, 25000);
     
     this.intervals.push(transferInterval);
-  }
-
-  startMenuCycle() {
-    const menuInterval = setInterval(async () => {
-      if (!this.isActive) {
-        clearInterval(menuInterval);
-        return;
-      }
-      
-      if (Math.random() > 0.7) { // 30% probabilidad
-        const menuMsg = this.getRandomMessage('menu');
-        await this.speakMessage(menuMsg);
-      }
-      
-    }, 30000); // Cada 30 segundos
-    
-    this.intervals.push(menuInterval);
   }
 
   getRandomMessage(category) {
@@ -240,23 +234,22 @@ export class CallSimulator {
     return messages[Math.floor(Math.random() * messages.length)];
   }
 
+  loadVoices() {
+    this.voices = speechSynthesis.getVoices();
+    if (this.voices.length === 0) {
+      speechSynthesis.addEventListener('voiceschanged', () => {
+        this.voices = speechSynthesis.getVoices();
+      });
+    }
+  }
+
   stopAll() {
     this.isActive = false;
+    this.stopCurrentAudio();
     
-    // Detener música
-    if (this.holdMusic) {
-      this.holdMusic.oscillator.stop();
-      if (this.holdMusic.changeInterval) {
-        clearInterval(this.holdMusic.changeInterval);
-      }
-      this.holdMusic = null;
-    }
-    
-    // Limpiar intervalos
     this.intervals.forEach(interval => clearInterval(interval));
     this.intervals = [];
     
-    // Detener speech
     speechSynthesis.cancel();
     
     console.log('🔇 Audio detenido');

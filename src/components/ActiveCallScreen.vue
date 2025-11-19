@@ -12,7 +12,7 @@
 
         <div class="text-h4 text-weight-bold text-white q-mb-xs">{{ displayName }}</div>
         <div class="text-h6 text-grey-3 q-mb-sm">Llamada en curso</div>
-        <div class="text-h3 text-weight-bold text-white q-mb-lg">00:00</div>
+        <div class="text-h3 text-weight-bold text-white q-mb-lg">{{ formatTime(callDuration) }}</div>
       </div>
 
       <!-- Controles principales -->
@@ -33,7 +33,7 @@
             <div class="control-label">{{ isMuted ? 'Activado' : 'Silenciar' }}</div>
           </div>
           
-          <div class="column items-center control-item">
+           <div class="column items-center control-item">
             <q-btn 
               round 
               size="lg" 
@@ -121,6 +121,7 @@
 <script setup>
 import { computed } from 'vue'
 
+// ✅ PROPS CORRECTAS
 const props = defineProps({
   phoneNumber: {
     type: String,
@@ -129,18 +130,29 @@ const props = defineProps({
   isMuted: {
     type: Boolean,
     default: false
+  },
+  callDuration: {
+    type: Number,
+    default: 0
   }
 })
 
+// ✅ EMITS CORRECTOS (sin keypad-toggle)
 const emit = defineEmits([
-  'mute-toggle',
-  'keypad-toggle', 
+  'mute-toggle', 
   'audio-toggle',
   'add-call',
   'facetime',
   'contacts',
   'end-call'
 ])
+
+// ✅ MÉTODO PARA FORMATEAR TIEMPO
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+}
 
 const displayName = computed(() => {
   const names = {
