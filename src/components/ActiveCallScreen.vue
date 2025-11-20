@@ -171,6 +171,7 @@ const tiempoFormateado = computed(() => {
   font-weight: 600;
   font-size: 14px;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  margin-top: 100px;
 }
 
 .text-white {

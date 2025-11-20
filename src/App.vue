@@ -42,7 +42,7 @@ const numeroTelefono = ref('8001234567')
 const microfonoSilenciado = ref(false)
 const duracionLlamada = ref(0)
 
-// Computados
+
 const currentScreen = computed(() => llamadaActiva.value ? ActiveCallScreen : DialPad)
 const screenProps = computed(() => llamadaActiva.value ? {
   phoneNumber: numeroTelefono.value,
@@ -50,11 +50,11 @@ const screenProps = computed(() => llamadaActiva.value ? {
   callDuration: duracionLlamada.value
 } : { phoneNumber: numeroTelefono.value })
 
-// Simulador
+
 const simuladorLlamada = ref(null)
 let temporizadorDuracion = null
 
-// Métodos
+
 const agregarDigito = (digito) => {
   if (numeroTelefono.value.length < 20) numeroTelefono.value += digito
 }
@@ -96,7 +96,7 @@ const alternarSilenciado = () => {
   microfonoSilenciado.value = !microfonoSilenciado.value
 }
 
-// Lifecycle
+
 onMounted(() => {
   simuladorLlamada.value = new CallSimulator()
 })
